@@ -5,26 +5,15 @@ This module initializes the Flask application and sets up all necessary extensio
 and configurations for the Frinny Foundry VTT module backend.
 """
 
-from flask import Flask, jsonify, request
-from flask_socketio import SocketIO, emit
+from flask import Flask, jsonify
 import os
 from dotenv import load_dotenv
 import logging
-import json
-import time
-import uuid
+from app.socket_setup import socketio
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
-
-# Initialize Flask-SocketIO
-socketio = SocketIO(
-    logger=True,
-    engineio_logger=True,
-    cors_allowed_origins="*",
-    async_mode='eventlet'
-)
 
 def create_app(config_name=None):
     """
@@ -50,52 +39,7 @@ def create_app(config_name=None):
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-key-change-in-production')
 
     # Initialize SocketIO with the app
-    socketio.init_app(app, cors_allowed_origins="*")
-
-    @socketio.on('connect')
-    def handle_connect():
-        """Handle client connection."""
-        user_id = request.args.get('userId')
-        if not user_id:
-            logger.error('Connection attempt without userId')
-            return False
-        
-        logger.info(f'Client connected: {user_id}')
-        return True
-
-    @socketio.on('disconnect')
-    def handle_disconnect():
-        """Handle client disconnection."""
-        user_id = request.args.get('userId')
-        logger.info(f'Client disconnected: {user_id}')
-
-    @socketio.on('query')
-    def handle_query(data):
-        """
-        Handle query messages from clients.
-        
-        Args:
-            data (dict): The query data from the client
-        """
-        user_id = request.args.get('userId')
-        request_id = data.get('request_id')
-        
-        # Send typing status
-        emit('typing_status', {
-            'isTyping': True
-        }, room=user_id)
-        
-        # TODO: Process query with AI service
-        response = {
-            'type': 'query_response',
-            'request_id': request_id,
-            'content': 'Query received and processed',  # Replace with actual AI response
-            'timestamp': int(time.time() * 1000),
-            'message_id': str(uuid.uuid4()),
-            'show_feedback': True
-        }
-        
-        emit('query_response', response, room=user_id)
+    socketio.init_app(app)
 
     # Health check endpoint
     @app.route('/health')
