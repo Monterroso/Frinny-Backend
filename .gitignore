@@ -1,0 +1,86 @@
+# ---------------------
+# General documentation
+# ---------------------
+# This .gitignore file is used to exclude files and directories that should not be
+# committed to the repository, such as build artifacts, environment variables,
+# IDE settings, logs, and system-generated files.
+
+# --------------------
+# Python-related files
+# --------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+.eggs/
+build/
+dist/
+develop-eggs/
+downloads/
+eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+.installed.cfg
+
+# ----------------------
+# Virtual environment(s)
+# ----------------------
+env/
+venv/
+ENV/
+
+# -------------------------
+# Environment variable files
+# -------------------------
+.env
+.env.*
+
+# -----------
+# IDE support
+# -----------
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# -----
+# Tests
+# -----
+tests/
+.coverage
+.pytest_cache/
+
+# -------
+# Logging
+# -------
+*.log
+
+# --------
+# Docs etc
+# --------
+docs/
+*.md
+
+# ----------------------------------
+# Operating system / miscellaneous
+# ----------------------------------
+.DS_Store
+Thumbs.db
+
+# -------------
+# Node (optional)
+# -------------
+node_modules/
+npm-debug.log
+yarn.lock
+
+# --------------
+# Docker-related
+# --------------
+.docker/ 
