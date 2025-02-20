@@ -10,6 +10,7 @@ import os
 from dotenv import load_dotenv
 import logging
 from app.socket_setup import socketio
+from app.routes.fallback import fallback_bp
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -37,6 +38,9 @@ def create_app(config_name=None):
     
     # Basic configurations
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-key-change-in-production')
+
+    # Register blueprints
+    app.register_blueprint(fallback_bp)
 
     # Initialize SocketIO with the app
     socketio.init_app(app)
