@@ -166,15 +166,7 @@ def handle_query(data):
             'query_data': data
         })
         
-        # Acknowledge receipt of query
-        ack_response = {
-            'request_id': request_id,
-            'timestamp': int(time.time() * 1000)
-        }
-        log_event('query_received', 'Query acknowledgment sent', ack_response)
-        emit('query_received', ack_response, room=user_id)
-        
-        # Temporary placeholder response
+        # Process query and send response directly without acknowledgment
         response = {
             'request_id': request_id,
             'content': 'Query handling is being reimplemented. Please try again later.',
@@ -201,13 +193,7 @@ def handle_character_creation(data):
         request_id = data.get('request_id', str(uuid.uuid4()))
         log_event('character_creation', 'Starting character creation', data)
         
-        # Acknowledge receipt
-        emit('character_creation_received', {
-            'request_id': request_id,
-            'timestamp': int(time.time() * 1000)
-        }, room=user_id)
-        
-        # Temporary placeholder response
+        # Process character creation and send response directly
         response = {
             'request_id': request_id,
             'status': 'pending',
@@ -234,15 +220,7 @@ def handle_level_up(data):
         request_id = data.get('request_id', str(uuid.uuid4()))
         log_event('level_up', 'Processing level up request', data)
         
-        # Acknowledge receipt
-        ack_response = {
-            'request_id': request_id,
-            'timestamp': int(time.time() * 1000)
-        }
-        log_event('level_up_received', 'Level up request acknowledged', ack_response)
-        emit('level_up_received', ack_response, room=user_id)
-        
-        # Temporary placeholder response
+        # Process level up and send response directly
         response = {
             'request_id': request_id,
             'status': 'pending',
@@ -269,15 +247,7 @@ def handle_combat_turn(data):
         request_id = data.get('request_id', str(uuid.uuid4()))
         log_event('combat_turn', 'Processing combat turn request', data)
         
-        # Acknowledge receipt
-        ack_response = {
-            'request_id': request_id,
-            'timestamp': int(time.time() * 1000)
-        }
-        log_event('combat_turn_received', 'Combat turn request acknowledged', ack_response)
-        emit('combat_turn_received', ack_response, room=user_id)
-        
-        # Temporary placeholder response
+        # Process combat turn and send response directly
         response = {
             'request_id': request_id,
             'status': 'pending',
@@ -304,15 +274,7 @@ def handle_combat_start(data):
         request_id = data.get('request_id', str(uuid.uuid4()))
         log_event('combat_start', 'Processing combat start request', data)
         
-        # Acknowledge receipt
-        ack_response = {
-            'request_id': request_id,
-            'timestamp': int(time.time() * 1000)
-        }
-        log_event('combat_start_received', 'Combat start request acknowledged', ack_response)
-        emit('combat_start_received', ack_response, room=user_id)
-        
-        # Process combat data and emit response
+        # Process combat data and emit response directly
         response = {
             'request_id': request_id,
             'status': 'pending',
@@ -339,13 +301,7 @@ def handle_feedback(data):
         request_id = data.get('request_id', str(uuid.uuid4()))
         logger.info(f"Processing feedback from {user_id}")
         
-        # Acknowledge receipt
-        emit('feedback_received', {
-            'request_id': request_id,
-            'timestamp': int(time.time() * 1000)
-        }, room=user_id)
-        
-        # Send response
+        # Send response directly
         emit('feedback_response', {
             'request_id': request_id,
             'status': 'success',
