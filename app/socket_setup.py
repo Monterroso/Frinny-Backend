@@ -98,7 +98,7 @@ def handle_connect():
     """
     Handle new client connections.
     Expects Foundry user ID in connection parameters.
-    Note: Changed from async to sync as Socket.IO doesn't support async handlers
+    Note: Changed from to sync as Socket.IO doesn't support handlers
     """
     try:
         user_id = request.args.get('userId')
@@ -153,16 +153,6 @@ def handle_disconnect():
     except Exception as e:
         log_event('disconnect', 'Disconnect error', error=str(e))
 
-def handle_typing_status(user_id: str, is_typing: bool):
-    """Update typing status for a user"""
-    response = {
-        'isTyping': is_typing,
-        'userId': user_id,
-        'timestamp': int(time.time() * 1000)
-    }
-    log_event('typing_status', f"Typing status changed to {is_typing}", response)
-    emit('typing_status', response, room=user_id)
-
 @socketio.on('query')
 def handle_query(data):
     """Handle general queries"""
@@ -184,9 +174,6 @@ def handle_query(data):
         log_event('query_received', 'Query acknowledgment sent', ack_response)
         emit('query_received', ack_response, room=user_id)
         
-        # Set typing status
-        handle_typing_status(user_id, True)
-        
         # Temporary placeholder response
         response = {
             'request_id': request_id,
@@ -196,9 +183,6 @@ def handle_query(data):
         }
         log_event('query_response', 'Sending query response', response)
         emit('query_response', response, room=user_id)
-        
-        # Set typing status to false
-        handle_typing_status(user_id, False)
         
     except Exception as e:
         error_response = {
@@ -210,12 +194,12 @@ def handle_query(data):
         emit('error', error_response, room=user_id)
 
 @socketio.on('character_creation_start')
-async def handle_character_creation(data):
+def handle_character_creation(data):
     """Handle character creation events"""
     try:
         user_id = request.args.get('userId')
         request_id = data.get('request_id', str(uuid.uuid4()))
-        logger.info(f"Starting character creation for {user_id}")
+        log_event('character_creation', 'Starting character creation', data)
         
         # Acknowledge receipt
         emit('character_creation_received', {
@@ -223,99 +207,132 @@ async def handle_character_creation(data):
             'timestamp': int(time.time() * 1000)
         }, room=user_id)
         
-        await handle_typing_status(user_id, True)
-        
         # Temporary placeholder response
-        emit('character_creation_response', {
+        response = {
             'request_id': request_id,
             'status': 'pending',
             'message': 'Character creation system is being reimplemented. Please try again later.',
             'timestamp': int(time.time() * 1000)
-        }, room=user_id)
+        }
+        log_event('character_creation_response', 'Sending character creation response', response)
+        emit('character_creation_response', response, room=user_id)
         
     except Exception as e:
-        logger.error(f"Error in handle_character_creation: {str(e)}")
-        emit('error', {
+        error_response = {
             'error': "Internal server error during character creation",
             'request_id': data.get('request_id'),
             'timestamp': int(time.time() * 1000)
-        }, room=user_id)
-    finally:
-        if user_id:
-            await handle_typing_status(user_id, False)
+        }
+        log_event('character_creation_error', 'Error in character creation', error_response, str(e))
+        emit('error', error_response, room=user_id)
 
-@socketio.on('character_level_up')
-async def handle_level_up(data):
+@socketio.on('level_up')
+def handle_level_up(data):
     """Handle character level up events"""
     try:
         user_id = request.args.get('userId')
         request_id = data.get('request_id', str(uuid.uuid4()))
-        logger.info(f"Processing level up for {user_id}")
+        log_event('level_up', 'Processing level up request', data)
         
         # Acknowledge receipt
-        emit('level_up_received', {
+        ack_response = {
             'request_id': request_id,
             'timestamp': int(time.time() * 1000)
-        }, room=user_id)
-        
-        await handle_typing_status(user_id, True)
+        }
+        log_event('level_up_received', 'Level up request acknowledged', ack_response)
+        emit('level_up_received', ack_response, room=user_id)
         
         # Temporary placeholder response
-        emit('level_up_response', {
+        response = {
             'request_id': request_id,
             'status': 'pending',
             'message': 'Level up system is being reimplemented. Please try again later.',
             'timestamp': int(time.time() * 1000)
-        }, room=user_id)
+        }
+        log_event('level_up_response', 'Sending level up response', response)
+        emit('level_up_response', response, room=user_id)
         
     except Exception as e:
-        logger.error(f"Error in handle_level_up: {str(e)}")
-        emit('error', {
+        error_response = {
             'error': "Internal server error during level up",
             'request_id': data.get('request_id'),
             'timestamp': int(time.time() * 1000)
-        }, room=user_id)
-    finally:
-        if user_id:
-            await handle_typing_status(user_id, False)
+        }
+        log_event('level_up_error', 'Error in level up', error_response, str(e))
+        emit('error', error_response, room=user_id)
 
 @socketio.on('combat_turn')
-async def handle_combat_turn(data):
+def handle_combat_turn(data):
     """Handle combat turn events"""
     try:
         user_id = request.args.get('userId')
         request_id = data.get('request_id', str(uuid.uuid4()))
-        logger.info(f"Processing combat turn for {user_id}")
+        log_event('combat_turn', 'Processing combat turn request', data)
         
         # Acknowledge receipt
-        emit('combat_turn_received', {
+        ack_response = {
             'request_id': request_id,
             'timestamp': int(time.time() * 1000)
-        }, room=user_id)
-        
-        await handle_typing_status(user_id, True)
+        }
+        log_event('combat_turn_received', 'Combat turn request acknowledged', ack_response)
+        emit('combat_turn_received', ack_response, room=user_id)
         
         # Temporary placeholder response
-        emit('combat_suggestion', {
+        response = {
             'request_id': request_id,
             'status': 'pending',
             'message': 'Combat assistance system is being reimplemented. Please try again later.',
             'timestamp': int(time.time() * 1000)
-        }, room=user_id)
+        }
+        log_event('combat_suggestion', 'Sending combat turn response', response)
+        emit('combat_suggestion', response, room=user_id)
         
     except Exception as e:
-        logger.error(f"Error in handle_combat_turn: {str(e)}")
-        emit('error', {
+        error_response = {
             'error': "Internal server error during combat",
             'request_id': data.get('request_id'),
             'timestamp': int(time.time() * 1000)
-        }, room=user_id)
-    finally:
-        if user_id:
-            await handle_typing_status(user_id, False)
+        }
+        log_event('combat_turn_error', 'Error in combat turn', error_response, str(e))
+        emit('error', error_response, room=user_id)
+
+@socketio.on('combat_start')
+def handle_combat_start(data):
+    """Handle combat start events"""
+    try:
+        user_id = request.args.get('userId')
+        request_id = data.get('request_id', str(uuid.uuid4()))
+        log_event('combat_start', 'Processing combat start request', data)
+        
+        # Acknowledge receipt
+        ack_response = {
+            'request_id': request_id,
+            'timestamp': int(time.time() * 1000)
+        }
+        log_event('combat_start_received', 'Combat start request acknowledged', ack_response)
+        emit('combat_start_received', ack_response, room=user_id)
+        
+        # Process combat data and emit response
+        response = {
+            'request_id': request_id,
+            'status': 'pending',
+            'message': 'Combat start system is being implemented',
+            'timestamp': int(time.time() * 1000)
+        }
+        log_event('combat_suggestion', 'Sending combat start response', response)
+        emit('combat_suggestion', response, room=user_id)
+        
+    except Exception as e:
+        error_response = {
+            'error': "Internal server error during combat start",
+            'request_id': data.get('request_id'),
+            'timestamp': int(time.time() * 1000)
+        }
+        log_event('combat_start_error', 'Error in combat start', error_response, str(e))
+        emit('error', error_response, room=user_id)
 
 @socketio.on('feedback')
-async def handle_feedback(data):
+def handle_feedback(data):
     """Handle feedback events"""
     try:
         user_id = request.args.get('userId')
