@@ -6,9 +6,10 @@ These routes provide basic functionality when WebSocket fails.
 from flask import Blueprint, request, jsonify
 from app.config.websocket_config import WebSocketConfig
 import logging
+from app.config.logging_config import get_logger
 
-# Configure logging
-logger = logging.getLogger(__name__)
+# Get module logger
+logger = get_logger(__name__)
 
 # Create blueprint
 fallback_bp = Blueprint('fallback', __name__)
@@ -21,13 +22,14 @@ def handle_feedback():
         user_id = data.get('userId')
         
         if not user_id:
+            logger.warning(f"Missing userId in feedback request: {data}")
             return jsonify({
                 'status': 'error',
                 'message': 'userId is required'
             }), 400
             
-        # Log feedback for now (implement proper storage later)
-        logger.info(f"Received feedback from {user_id}: {data}")
+        # Process feedback (implement proper storage later)
+        logger.info(f"Received feedback from userId={user_id}")
         
         return jsonify({
             'status': 'success',
@@ -46,6 +48,7 @@ def handle_feedback():
 @fallback_bp.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint that includes available endpoints."""
+    logger.debug("Health check requested")
     return jsonify({
         'status': 'healthy',
         'available_endpoints': WebSocketConfig.get_websocket_urls()

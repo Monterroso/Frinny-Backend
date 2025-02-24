@@ -8,13 +8,12 @@ and configurations for the Frinny Foundry VTT module backend.
 from flask import Flask, jsonify
 import os
 from dotenv import load_dotenv
-import logging
 from app.socket_setup import socketio
 from app.routes.fallback import fallback_bp
+from app.config.logging_config import setup_logging, get_logger
 
 # Set up logging
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 def create_app(config_name=None):
     """
@@ -28,6 +27,9 @@ def create_app(config_name=None):
     """
     # Load environment variables
     load_dotenv()
+    
+    # Set up logging
+    setup_logging()
     
     # Create Flask app
     app = Flask(__name__)
@@ -44,6 +46,8 @@ def create_app(config_name=None):
 
     # Initialize SocketIO with the app
     socketio.init_app(app)
+    
+    logger.info(f"Flask application started in {config_name} mode")
 
     # Health check endpoint
     @app.route('/health')
