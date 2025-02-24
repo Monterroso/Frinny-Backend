@@ -187,10 +187,6 @@ def handle_generic_event(event_type, data, response_event=None, message_field='m
         # Default placeholder message
         message = f'{event_type.replace("_", " ").title()} system is being reimplemented. Please try again later.'
         
-        # Special case messages for specific events
-        if event_type == 'combat_start':
-            message = 'Combat start system is being implemented. Please try again later.'
-        
         response[message_field] = message
         
         log_event(response_event, f'Sending {event_type} response', response)
