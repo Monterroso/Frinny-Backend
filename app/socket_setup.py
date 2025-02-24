@@ -153,145 +153,82 @@ def handle_disconnect():
     except Exception as e:
         log_event('disconnect', 'Disconnect error', error=str(e))
 
-@socketio.on('query')
-def handle_query(data):
-    """Handle general queries"""
+def handle_generic_event(event_type, data, response_event=None, message_field='message'):
+    """
+    Generic handler for socket events
+    
+    Args:
+        event_type: Type of event (query, character_creation, etc.)
+        data: Data received from client
+        response_event: Event name to emit response (defaults to event_type + '_response')
+        message_field: Field name to use for the message in response ('message' or 'content')
+        
+    Returns:
+        None
+    """
     try:
         user_id = request.args.get('userId')
-        sid = request.sid
         request_id = data.get('request_id', str(uuid.uuid4()))
         
-        log_event('query', 'Received new query', {
-            'request_id': request_id,
-            'query_data': data
-        })
+        # Default response event name if not provided
+        if response_event is None:
+            response_event = f"{event_type}_response"
         
-        # Process query and send response directly without acknowledgment
+        log_event(event_type, f'Processing {event_type} request', data)
+        
+        # Create response with common fields
         response = {
             'request_id': request_id,
-            'content': 'Query handling is being reimplemented. Please try again later.',
             'status': 'pending',
             'timestamp': int(time.time() * 1000)
         }
-        log_event('query_response', 'Sending query response', response)
-        emit('query_response', response, room=user_id)
+        
+        # Add message with appropriate field name
+        # Default placeholder message
+        message = f'{event_type.replace("_", " ").title()} system is being reimplemented. Please try again later.'
+        
+        # Special case messages for specific events
+        if event_type == 'combat_start':
+            message = 'Combat start system is being implemented. Please try again later.'
+        
+        response[message_field] = message
+        
+        log_event(response_event, f'Sending {event_type} response', response)
+        emit(response_event, response, room=user_id)
         
     except Exception as e:
         error_response = {
-            'error': "Internal server error processing query",
+            'error': f"Internal server error during {event_type}",
             'request_id': data.get('request_id'),
             'timestamp': int(time.time() * 1000)
         }
-        log_event('query_error', 'Error processing query', error_response, str(e))
+        log_event(f'{event_type}_error', f'Error in {event_type}', error_response, str(e))
         emit('error', error_response, room=user_id)
+
+@socketio.on('query')
+def handle_query(data):
+    """Handle general queries"""
+    handle_generic_event('query', data, message_field='content')
 
 @socketio.on('character_creation_start')
 def handle_character_creation(data):
     """Handle character creation events"""
-    try:
-        user_id = request.args.get('userId')
-        request_id = data.get('request_id', str(uuid.uuid4()))
-        log_event('character_creation', 'Starting character creation', data)
-        
-        # Process character creation and send response directly
-        response = {
-            'request_id': request_id,
-            'status': 'pending',
-            'message': 'Character creation system is being reimplemented. Please try again later.',
-            'timestamp': int(time.time() * 1000)
-        }
-        log_event('character_creation_response', 'Sending character creation response', response)
-        emit('character_creation_response', response, room=user_id)
-        
-    except Exception as e:
-        error_response = {
-            'error': "Internal server error during character creation",
-            'request_id': data.get('request_id'),
-            'timestamp': int(time.time() * 1000)
-        }
-        log_event('character_creation_error', 'Error in character creation', error_response, str(e))
-        emit('error', error_response, room=user_id)
+    handle_generic_event('character_creation', data, response_event='character_creation_response')
 
 @socketio.on('level_up')
 def handle_level_up(data):
     """Handle character level up events"""
-    try:
-        user_id = request.args.get('userId')
-        request_id = data.get('request_id', str(uuid.uuid4()))
-        log_event('level_up', 'Processing level up request', data)
-        
-        # Process level up and send response directly
-        response = {
-            'request_id': request_id,
-            'status': 'pending',
-            'message': 'Level up system is being reimplemented. Please try again later.',
-            'timestamp': int(time.time() * 1000)
-        }
-        log_event('level_up_response', 'Sending level up response', response)
-        emit('level_up_response', response, room=user_id)
-        
-    except Exception as e:
-        error_response = {
-            'error': "Internal server error during level up",
-            'request_id': data.get('request_id'),
-            'timestamp': int(time.time() * 1000)
-        }
-        log_event('level_up_error', 'Error in level up', error_response, str(e))
-        emit('error', error_response, room=user_id)
+    handle_generic_event('level_up', data)
 
 @socketio.on('combat_turn')
 def handle_combat_turn(data):
     """Handle combat turn events"""
-    try:
-        user_id = request.args.get('userId')
-        request_id = data.get('request_id', str(uuid.uuid4()))
-        log_event('combat_turn', 'Processing combat turn request', data)
-        
-        # Process combat turn and send response directly
-        response = {
-            'request_id': request_id,
-            'status': 'pending',
-            'message': 'Combat assistance system is being reimplemented. Please try again later.',
-            'timestamp': int(time.time() * 1000)
-        }
-        log_event('combat_suggestion', 'Sending combat turn response', response)
-        emit('combat_suggestion', response, room=user_id)
-        
-    except Exception as e:
-        error_response = {
-            'error': "Internal server error during combat",
-            'request_id': data.get('request_id'),
-            'timestamp': int(time.time() * 1000)
-        }
-        log_event('combat_turn_error', 'Error in combat turn', error_response, str(e))
-        emit('error', error_response, room=user_id)
+    handle_generic_event('combat_turn', data, response_event='combat_suggestion')
 
 @socketio.on('combat_start')
 def handle_combat_start(data):
     """Handle combat start events"""
-    try:
-        user_id = request.args.get('userId')
-        request_id = data.get('request_id', str(uuid.uuid4()))
-        log_event('combat_start', 'Processing combat start request', data)
-        
-        # Process combat data and emit response directly
-        response = {
-            'request_id': request_id,
-            'status': 'pending',
-            'message': 'Combat start system is being implemented',
-            'timestamp': int(time.time() * 1000)
-        }
-        log_event('combat_suggestion', 'Sending combat start response', response)
-        emit('combat_suggestion', response, room=user_id)
-        
-    except Exception as e:
-        error_response = {
-            'error': "Internal server error during combat start",
-            'request_id': data.get('request_id'),
-            'timestamp': int(time.time() * 1000)
-        }
-        log_event('combat_start_error', 'Error in combat start', error_response, str(e))
-        emit('error', error_response, room=user_id)
+    handle_generic_event('combat_start', data, response_event='combat_suggestion')
 
 @socketio.on('feedback')
 def handle_feedback(data):
@@ -305,7 +242,7 @@ def handle_feedback(data):
         emit('feedback_response', {
             'request_id': request_id,
             'status': 'success',
-            'message': 'Feedback received',
+            'message': 'Feedback received. Thank you for your input.',
             'timestamp': int(time.time() * 1000)
         }, room=user_id)
         
