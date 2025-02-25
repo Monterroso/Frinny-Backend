@@ -5,13 +5,11 @@ Relies on Foundry VTT for session management and user authentication.
 """
 
 from flask_socketio import SocketIO, emit, join_room, leave_room
-from flask import request, current_app
+from flask import request
 from app.config.websocket_config import WebSocketConfig
 import uuid
 import time
 import json
-import sys
-import logging
 import asyncio
 from app.config.logging_config import get_logger
 from app.agent.agent import lang_graph_handler

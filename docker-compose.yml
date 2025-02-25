@@ -38,5 +38,18 @@ services:
       - PYTHONUNBUFFERED=1
       - PYTHONPATH=/app
 
+  test-persistence:
+    build: .
+    env_file:
+      - .env
+    command: python tests/test_state_persistence.py
+    volumes:
+      - ./app/agent:/app/agent
+      - ./app/config:/app/config
+      - ./tests:/app/tests
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
+
 volumes:
   redis_data: 

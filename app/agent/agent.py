@@ -204,6 +204,7 @@ graph_builder.add_edge("tools", "chatbot")
 graph_builder.add_edge("chatbot", END)
 
 # Use MemorySaver for persistence
+logger.info("Initializing MemorySaver")
 memory = MemorySaver()
 graph = graph_builder.compile(checkpointer=memory)
 
@@ -254,6 +255,8 @@ class LangGraphHandler:
             existing_state = None
             try:
                 # Use the proper checkpointer configuration
+                logger.info(f"Getting existing state for checkpoint_id {checkpoint_id}")
+                logger.info(f"self.memory: {self.memory}")
                 existing_state = await self.memory.get(
                     {"configurable": {"checkpoint_id": checkpoint_id}}
                 )
@@ -281,6 +284,16 @@ class LangGraphHandler:
                     "thread_id": user_id
                 }
             )
+            
+            # Save the updated state back to memory
+            try:
+                await self.memory.put(
+                    {"configurable": {"checkpoint_id": checkpoint_id}},
+                    result
+                )
+                logger.info(f"Saved updated state for checkpoint_id {checkpoint_id}")
+            except Exception as e:
+                logger.error(f"Failed to save state for checkpoint_id {checkpoint_id}: {str(e)}")
             
             # Get the last message (the response)
             last_message = result["messages"][-1]
