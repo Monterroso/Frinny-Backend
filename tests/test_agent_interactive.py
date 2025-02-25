@@ -4,9 +4,10 @@ import json
 import logging
 import argparse
 from app.agent.agent import lang_graph_handler
-from app.config.logging_config import get_logger
+from app.config.logging_config import get_logger, setup_logging
 
 # Set up logging
+setup_logging()
 logger = get_logger(__name__)
 logger.setLevel(logging.INFO)
 

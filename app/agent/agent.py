@@ -274,10 +274,11 @@ class LangGraphHandler:
                     "messages": messages,
                     "user_id": user_id,
                     "context_id": context_id,
-                    "metadata": {"event_type": event_type},
-                    "configurable": {
-                        "checkpoint_id": checkpoint_id
-                    }
+                    "metadata": {"event_type": event_type}
+                },
+                config={
+                    "checkpoint_id": checkpoint_id,
+                    "thread_id": user_id
                 }
             )
             
