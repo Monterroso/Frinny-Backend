@@ -1,8 +1,16 @@
-   # requirements.txt
-   flask==3.0.0
-   flask-socketio==5.3.6
-   python-dotenv==1.0.0
-   eventlet==0.35.2
-   gunicorn==21.2.0
-   pydantic==2.5.2
-   faiss-cpu==1.7.4
+# requirements.txt
+flask==3.0.0
+flask-socketio==5.3.6
+python-dotenv==1.0.0
+eventlet==0.35.2
+gunicorn==21.2.0
+pydantic==2.5.2
+faiss-cpu==1.7.4
+
+# LangGraph and LangChain dependencies
+langgraph>=0.0.15
+langchain>=0.0.267
+langchain-openai>=0.0.2
+langchain-core>=0.0.13
+openai>=1.0.0
+typing-extensions>=4.5.0

@@ -12,7 +12,9 @@ import time
 import json
 import sys
 import logging
+import asyncio
 from app.config.logging_config import get_logger
+from app.agent.agent import lang_graph_handler
 
 # Get module logger
 logger = get_logger(__name__)
@@ -94,13 +96,14 @@ def handle_disconnect():
     except Exception as e:
         logger.error(f"Disconnect error: {str(e)}")
 
-def handle_generic_event(event_type, data, response_event=None, message_field='message'):
+async def handle_generic_event_async(event_type, data, user_id, response_event=None, message_field='message'):
     """
-    Generic handler for socket events
+    Generic handler for socket events - async implementation
     
     Args:
         event_type: Type of event (query, character_creation, etc.)
         data: Data received from client
+        user_id: User ID from the request
         response_event: Event name to emit response (defaults to event_type + '_response')
         message_field: Field name to use for the message in response ('message' or 'content')
         
@@ -108,7 +111,6 @@ def handle_generic_event(event_type, data, response_event=None, message_field='m
         None
     """
     try:
-        user_id = request.args.get('userId')
         request_id = data.get('request_id', str(uuid.uuid4()))
         
         logger.info(f"Processing {event_type} request from userId={user_id}, request_id={request_id}")
@@ -117,21 +119,17 @@ def handle_generic_event(event_type, data, response_event=None, message_field='m
         if response_event is None:
             response_event = f"{event_type}_response"
         
-        # Create response with common fields
-        response = {
-            'request_id': request_id,
-            'status': 'pending',
-            'timestamp': int(time.time() * 1000)
-        }
+        # Process the event using LangGraphHandler
+        response = await lang_graph_handler.process_event(event_type, data, user_id)
         
-        # Add message with appropriate field name
-        # Default placeholder message
-        message = f'{event_type.replace("_", " ").title()} system is being reimplemented. Please try again later.'
-        
-        response[message_field] = message
+        # Ensure the response has the correct message field
+        if message_field not in response and 'content' in response:
+            response[message_field] = response.pop('content')
+        elif message_field not in response and 'message' in response:
+            response[message_field] = response.pop('message')
         
         logger.info(f"Sending {response_event} to userId={user_id}, request_id={request_id}")
-        emit(response_event, response, room=user_id)
+        socketio.emit(response_event, response, room=user_id)
         
     except Exception as e:
         error_response = {
@@ -140,59 +138,141 @@ def handle_generic_event(event_type, data, response_event=None, message_field='m
             'timestamp': int(time.time() * 1000)
         }
         logger.error(f"Error in {event_type}: {str(e)}")
-        emit('error', error_response, room=user_id)
+        socketio.emit('error', error_response, room=user_id)
+
+def handle_generic_event(event_type, data, user_id, response_event=None, message_field='message'):
+    """
+    Synchronous wrapper for handle_generic_event_async that properly runs the coroutine
+    
+    Args:
+        Same as handle_generic_event_async
+    """
+    # Create an event loop for this thread if it doesn't exist
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        # If there's no event loop in this thread, create one
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    
+    # Run the coroutine until it completes
+    try:
+        loop.run_until_complete(handle_generic_event_async(
+            event_type, data, user_id, response_event, message_field
+        ))
+    except Exception as e:
+        logger.error(f"Error in handle_generic_event: {str(e)}")
+        # Send error response
+        error_response = {
+            'error': f"Internal server error during {event_type}",
+            'request_id': data.get('request_id', str(uuid.uuid4())),
+            'timestamp': int(time.time() * 1000)
+        }
+        socketio.emit('error', error_response, room=user_id)
 
 @socketio.on('query')
 def handle_query(data):
     """Handle general queries"""
-    handle_generic_event('query', data, message_field='content')
+    user_id = request.args.get('userId')
+    # Send immediate acknowledgment
+    ack = {
+        'status': 'processing',
+        'request_id': data.get('request_id', str(uuid.uuid4())),
+        'timestamp': int(time.time() * 1000)
+    }
+    emit('query_ack', ack, room=user_id)
+    
+    # Process in background
+    socketio.start_background_task(
+        handle_generic_event, 
+        'query', data, user_id, 
+        response_event='query_response', 
+        message_field='content'
+    )
 
 @socketio.on('character_creation_start')
 def handle_character_creation(data):
     """Handle character creation events"""
-    handle_generic_event('character_creation', data, response_event='character_creation_response')
+    user_id = request.args.get('userId')
+    socketio.start_background_task(
+        handle_generic_event, 
+        'character_creation', data, user_id, 
+        response_event='character_creation_response'
+    )
 
 @socketio.on('level_up')
 def handle_level_up(data):
-    """Handle character level up events"""
-    handle_generic_event('level_up', data)
+    """Handle level up events"""
+    user_id = request.args.get('userId')
+    socketio.start_background_task(
+        handle_generic_event, 
+        'level_up', data, user_id, 
+        response_event='level_up_response'
+    )
 
 @socketio.on('combat_turn')
 def handle_combat_turn(data):
     """Handle combat turn events"""
-    handle_generic_event('combat_turn', data, response_event='combat_suggestion')
+    user_id = request.args.get('userId')
+    socketio.start_background_task(
+        handle_generic_event, 
+        'combat_turn', data, user_id, 
+        response_event='combat_turn_response'
+    )
 
 @socketio.on('combat_start')
 def handle_combat_start(data):
     """Handle combat start events"""
-    handle_generic_event('combat_start', data, response_event='combat_suggestion')
+    user_id = request.args.get('userId')
+    socketio.start_background_task(
+        handle_generic_event, 
+        'combat_start', data, user_id, 
+        response_event='combat_start_response'
+    )
 
 @socketio.on('feedback')
 def handle_feedback(data):
-    """Handle feedback events"""
+    """
+    Handle user feedback on responses
+    
+    Args:
+        data: Feedback data with fields:
+            - request_id: ID of the original request
+            - rating: User rating (1-5)
+            - comment: Optional user comment
+            - context_id: Context ID of the conversation
+    """
     try:
         user_id = request.args.get('userId')
-        request_id = data.get('request_id', str(uuid.uuid4()))
+        request_id = data.get('request_id')
+        rating = data.get('rating')
         
-        logger.info(f"Processing feedback from userId={user_id}, request_id={request_id}")
+        logger.info(f"Received feedback from userId={user_id}, request_id={request_id}, rating={rating}")
         
-        # Send response directly
+        # Send acknowledgment immediately
         response = {
-            'request_id': request_id,
             'status': 'success',
-            'message': 'Feedback received. Thank you for your input.',
+            'message': 'Feedback received',
+            'request_id': request_id,
             'timestamp': int(time.time() * 1000)
         }
-        
         emit('feedback_response', response, room=user_id)
         
+        # Process feedback in background if context_id is provided
+        if 'context_id' in data:
+            socketio.start_background_task(
+                handle_generic_event,
+                'feedback', data, user_id
+            )
+        
     except Exception as e:
-        logger.error(f"Error in handle_feedback: {str(e)}")
-        emit('error', {
-            'error': "Internal server error processing feedback",
+        error_response = {
+            'error': 'Error processing feedback',
             'request_id': data.get('request_id'),
             'timestamp': int(time.time() * 1000)
-        }, room=user_id)
+        }
+        logger.error(f"Error in feedback: {str(e)}")
+        emit('error', error_response, room=user_id)
 
 @socketio.on_error()
 def error_handler(e):
