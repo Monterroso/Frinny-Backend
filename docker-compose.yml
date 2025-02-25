@@ -25,5 +25,18 @@ services:
         reservations:
           cpus: '0.25'
 
+  test-agent:
+    build: .
+    env_file:
+      - .env
+    command: python tests/test_agent_interactive.py --interactive
+    volumes:
+      - ./app/agent:/app/agent
+      - ./app/config:/app/config
+      - ./tests:/app/tests
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
+
 volumes:
   redis_data: 
