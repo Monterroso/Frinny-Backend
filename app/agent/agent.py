@@ -262,14 +262,26 @@ graph_builder.add_edge("chatbot", END)
 # Use SQLite for persistence
 logger.info("Initializing persistence storage")
 # Get database path from environment variable or use a default
-db_path = os.environ.get("SQLITE_DB_PATH", "agent_state.db")
+db_path = os.environ.get("SQLITE_DB_PATH", "data/agent_state.db")
 try:
     # Try to use SQLite persistence
     logger.info(f"Attempting to use SQLite persistence with path: {db_path}")
-    # Create directory if it doesn't exist
-    os.makedirs(os.path.dirname(db_path) if os.path.dirname(db_path) else '.', exist_ok=True)
+    
+    # Create directory structure if it doesn't exist
+    dir_path = os.path.dirname(db_path)
+    if dir_path:
+        os.makedirs(dir_path, exist_ok=True)
+        logger.info(f"Ensured directory exists at: {dir_path}")
+    
     # Initialize AsyncSqliteSaver for async operations
     memory = AsyncSqliteSaver(db_path)
+    
+    # Verify database was created
+    if os.path.exists(db_path):
+        logger.info(f"SQLite database file created/exists at: {db_path}")
+    else:
+        logger.warning(f"SQLite database file not found at: {db_path} after initialization")
+    
     logger.info("Successfully initialized SQLite persistence")
 except Exception as e:
     # Fall back to MemorySaver if there's an issue with SQLite
@@ -328,15 +340,11 @@ class LangGraphHandler:
                 # Try to get the existing state
                 logger.info(f"Getting existing state for checkpoint_id {checkpoint_id}")
                 # Get the state directly from the checkpointer
-                existing_state = None
-                try:
-                    config = {"config": {"checkpoint_id": checkpoint_id}}
-                    existing_state = await self.graph.get_state(config)
-                    logger.info(f"Retrieved existing state for checkpoint_id {checkpoint_id}")
-                except Exception as e:
-                    logger.info(f"No existing state found for checkpoint_id {checkpoint_id}: {str(e)}")
+                existing_state = await self.graph.get_state({"checkpoint_id": checkpoint_id})
+                logger.info(f"Retrieved existing state for checkpoint_id {checkpoint_id}")
             except Exception as e:
-                logger.warning(f"Error retrieving state: {str(e)}")
+                logger.info(f"No existing state found for checkpoint_id {checkpoint_id}: {str(e)}")
+                existing_state = None
             
             # Initialize messages list
             messages = [message]
@@ -353,7 +361,6 @@ class LangGraphHandler:
                     "context_id": context_id,
                     "metadata": {"event_type": event_type}
                 },
-                #Don't edit this config this is how it's supposed to be
                 config={
                     "checkpoint_id": checkpoint_id,
                     "thread_id": user_id
@@ -363,6 +370,17 @@ class LangGraphHandler:
             # The state is automatically saved through the checkpointer when using ainvoke
             # No need to explicitly save the state, but we'll log the success
             logger.info(f"State automatically saved for checkpoint_id {checkpoint_id}")
+            
+            # Verify state was actually saved by attempting to retrieve it
+            try:
+                verification_state = await self.graph.get_state({"checkpoint_id": checkpoint_id})
+                if verification_state and "messages" in verification_state:
+                    message_count = len(verification_state["messages"])
+                    logger.info(f"Verified state persistence: found {message_count} messages in checkpoint_id {checkpoint_id}")
+                else:
+                    logger.warning(f"State verification issue: retrieved state missing messages for checkpoint_id {checkpoint_id}")
+            except Exception as e:
+                logger.warning(f"Could not verify state persistence for checkpoint_id {checkpoint_id}: {str(e)}")
             
             # Get the last message (the response)
             last_message = result["messages"][-1]
