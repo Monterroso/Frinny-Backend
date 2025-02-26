@@ -8,7 +8,7 @@ This testing suite aims to validate our Pathfinder 2E AI assistant backend (Frin
 
 2. **Validate State Persistence**: Confirm that conversation history and context are properly maintained across multiple messages and sessions, enabling Frinny to reference previous information appropriately.
 
-3. **Verify Response Format Consistency**: Ensure all responses include the required fields (content/message, request_id, context_id, timestamp) plus the new mood field for enhancing frontend rendering.
+3. **Verify Response Format Consistency**: Ensure all responses include the required fields (content/message, request_id, context_id, timestamp) plus the mood field for enhancing frontend rendering.
 
 4. **Test System Resilience**: Validate the system's ability to handle errors, reconnections, and unexpected inputs gracefully without service disruption.
 
@@ -33,8 +33,8 @@ By implementing this comprehensive testing approach, we aim to deliver a robust,
 
 ## 2. Mock Frontend Data Generation
 
-- [ ] **Create Test Data Generators**
-   - [ ] Implement function to generate private chat messages
+- [x] **Create Test Data Generators** (Partially implemented)
+   - [x] Implement function to generate private chat messages
    - [ ] Implement function to generate public chat messages
    - [ ] Implement function to generate character creation data
    - [ ] Implement function to generate combat data
@@ -68,6 +68,7 @@ By implementing this comprehensive testing approach, we aim to deliver a robust,
 - [x] **Configure SQLite Integration**
    - [x] Add langgraph-checkpoint-sqlite package to requirements.txt
    - [x] Update agent.py to use SqliteSaver for state persistence
+   - [x] Update agent.py to use AsyncSqliteSaver for async operations
    - [x] Configure database file path handling
    - [x] Implement backup/recovery mechanism for the SQLite database
 
@@ -82,12 +83,13 @@ By implementing this comprehensive testing approach, we aim to deliver a robust,
 
 - [x] **Update Response Format**
    - [x] Add mood field to agent responses
-   - [x] Create mood analyzer function with limited set of moods (confused, happy, thinking, scared, default)
+   - [x] Implement self-classification of mood through LLM with JSON scoring
    - [x] Implement response formatter
+   - [x] Implement self-classification of mood through LLM with JSON scoring
 
 - [x] **Response Validation Tests**
    - [x] Test basic response structure (request_id, content/message, context_id)
-   - [x] Test mood field presence and valid values
+   - [x] Validate mood field presence (manual testing)
    - [x] Test timestamp field format and accuracy
    - [x] Test error response format
 
@@ -124,6 +126,7 @@ By implementing this comprehensive testing approach, we aim to deliver a robust,
 
 - [x] **SQLite Integration**
    - [x] Update `app/agent/agent.py` to use SqliteSaver instead of MemorySaver
+   - [x] Update `app/agent/agent.py` to use AsyncSqliteSaver for async operations 
    - [x] Configure appropriate file paths for different environments
    - [x] Implement error handling for database access issues
 
@@ -132,9 +135,10 @@ By implementing this comprehensive testing approach, we aim to deliver a robust,
    - [ ] Implement message sending/receiving with proper validation
 
 - [x] **Response Format Update**
-   - [x] Create `app/agent/mood_analyzer.py` with mood detection logic for the required moods
+   - [x] Implement LLM-based mood classification with JSON scoring
    - [x] Update `app/agent/agent.py` process_event method to include mood
    - [x] Update response formatter to include all required fields
+   - [x] Implement LLM-based mood classification with JSON scoring
 
 ## 9. Documentation and Reporting
 
@@ -156,3 +160,11 @@ By implementing this comprehensive testing approach, we aim to deliver a robust,
    - [ ] Test with extremely large messages
    - [ ] Test behavior when OpenAI API is unavailable
    - [x] Test SQLite connection failure scenarios
+
+## 11. Qualitative Evaluation
+
+- [ ] **LangSmith Integration**
+   - [ ] Set up LangSmith for tracking and evaluating LLM responses
+   - [ ] Configure mood evaluation metrics in LangSmith
+   - [ ] Implement subjective quality measurements for responses
+   - [ ] Create dashboards for monitoring response quality over time

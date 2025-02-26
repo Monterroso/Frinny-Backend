@@ -46,7 +46,7 @@ services:
     build: .
     env_file:
       - .env
-    command: python tests/test_mood_and_persistence.py
+    command: python tests/test_state_persistence.py
     volumes:
       - ./app/agent:/app/agent
       - ./app/config:/app/config

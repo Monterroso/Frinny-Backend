@@ -4,6 +4,8 @@ import json
 import time
 import uuid
 import re
+import asyncio
+import traceback
 
 from langchain_openai import ChatOpenAI  # Using OpenAI for our LLM
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
@@ -17,7 +19,6 @@ from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
 
 from app.agent.tools import PF2ERulesLookup, CombatAnalyzer, LevelUpAdvisor, AdventureReference
-from app.agent.mood_analyzer import analyze_mood, analyze_prompt_for_mood
 from app.config.logging_config import get_logger
 
 # Get module logger
@@ -398,22 +399,14 @@ class LangGraphHandler:
                         logger.info(f"Selected dominant mood: {mood}")
                     else:
                         logger.warning("JSON found but no 'moods' key present")
+                        mood = "default"
                 else:
-                    logger.debug("No JSON mood data found in response, falling back to pattern matching")
-                    # First check if user explicitly requested a mood
-                    user_requested_mood = analyze_prompt_for_mood(content)
-                    if user_requested_mood:
-                        mood = user_requested_mood
-                        logger.info(f"Using user-requested mood: {mood}")
-                    else:
-                        # Otherwise analyze the response for mood
-                        mood = analyze_mood(response_content)
-                        logger.info(f"Detected mood using pattern matching: {mood}")
+                    logger.debug("No JSON mood data found in response, setting default mood")
+                    mood = "default"
             except Exception as e:
-                # If any error occurs during mood extraction, fall back to pattern matching
+                # If any error occurs during mood extraction, use default mood
                 logger.warning(f"Error extracting mood from response: {str(e)}")
-                mood = analyze_mood(response_content)
-                logger.info(f"Fallback mood detection: {mood}")
+                mood = "default"
             
             # Format response for socket_setup
             response = {
