@@ -7,7 +7,6 @@ services:
       - "5001:5001"
     volumes:
       - .:/app
-      - sqlite_data:/app/data
     env_file:
       - .env
     restart: unless-stopped
@@ -15,6 +14,7 @@ services:
       - PYTHONUNBUFFERED=1
       - FLASK_ENV=development
       - SQLITE_DB_PATH=/app/data/agent_state.db
+      - MONGODB_URI=${MONGODB_URI}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
       interval: 30s
@@ -36,11 +36,11 @@ services:
       - ./app/agent:/app/agent
       - ./app/config:/app/config
       - ./tests:/app/tests
-      - sqlite_data:/app/data
     environment:
       - PYTHONUNBUFFERED=1
       - PYTHONPATH=/app
       - SQLITE_DB_PATH=/app/data/agent_state.db
+      - MONGODB_URI=${MONGODB_URI}
 
   test-persistence:
     build: .
@@ -51,11 +51,22 @@ services:
       - ./app/agent:/app/agent
       - ./app/config:/app/config
       - ./tests:/app/tests
-      - sqlite_data:/app/data
     environment:
       - PYTHONUNBUFFERED=1
       - PYTHONPATH=/app
       - SQLITE_DB_PATH=/app/data/agent_state.db
+      - MONGODB_URI=${MONGODB_URI}
 
-volumes:
-  sqlite_data: 
+  test-mongodb:
+    build: .
+    env_file:
+      - .env
+    command: python tests/test_mongodb_persistence.py
+    volumes:
+      - ./app/agent:/app/agent
+      - ./app/config:/app/config
+      - ./tests:/app/tests
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
+      - MONGODB_URI=${MONGODB_URI} 

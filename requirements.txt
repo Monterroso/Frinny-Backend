@@ -16,5 +16,10 @@ openai>=1.0.0
 typing-extensions>=4.5.0
 
 # Persistence
-langgraph-checkpoint-sqlite>=1.0.0
-aiosqlite>=0.17.0  # Required for AsyncSqliteSaver
+# SQLite - Keeping for reference
+# langgraph-checkpoint-sqlite>=1.0.0
+# aiosqlite>=0.17.0  # Required for AsyncSqliteSaver
+
+# MongoDB Persistence
+langgraph-checkpoint-mongodb>=0.0.2
+pymongo>=4.5.0

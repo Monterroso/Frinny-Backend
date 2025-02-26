@@ -16,8 +16,8 @@ logger = get_logger(__name__)
 class PF2ERulesLookup(BaseTool):
     """Tool for finding and relaying PF2E rules."""
     
-    name = "pf2e_rules_lookup"
-    description = "Searches PF2E rulebooks for relevant information and returns formatted rule text with citations."
+    name: str = "pf2e_rules_lookup"
+    description: str = "Searches PF2E rulebooks for relevant information and returns formatted rule text with citations."
     
     def _run(self, query: str) -> str:
         """
@@ -55,8 +55,8 @@ class CombatAnalyzerInput(BaseModel):
 class CombatAnalyzer(BaseTool):
     """Tool for analyzing PF2E combat scenarios."""
     
-    name = "combat_analyzer"
-    description = "Analyzes combat situation and provides tactical advice based on character abilities, enemy stats, and positioning."
+    name: str = "combat_analyzer"
+    description: str = "Analyzes combat situation and provides tactical advice based on character abilities, enemy stats, and positioning."
     
     def _run(self, combat_state: Dict, character_id: Optional[str] = None) -> Dict:
         """
@@ -97,8 +97,8 @@ class LevelUpAdvisorInput(BaseModel):
 class LevelUpAdvisor(BaseTool):
     """Tool for providing character advancement advice."""
     
-    name = "level_up_advisor"
-    description = "Analyzes character data and provides level-up recommendations based on character goals and optimization."
+    name: str = "level_up_advisor"
+    description: str = "Analyzes character data and provides level-up recommendations based on character goals and optimization."
     
     def _run(self, character_data: Dict, level_up_goals: List[str] = None) -> Dict:
         """
@@ -137,8 +137,8 @@ class AdventureReferenceInput(BaseModel):
 class AdventureReference(BaseTool):
     """Tool for referencing adventure content."""
     
-    name = "adventure_reference"
-    description = "Searches adventure database for relevant content and provides narrative and mechanical information."
+    name: str = "adventure_reference"
+    description: str = "Searches adventure database for relevant content and provides narrative and mechanical information."
     
     def _run(self, query: str, adventure_context: Optional[Dict] = None) -> str:
         """

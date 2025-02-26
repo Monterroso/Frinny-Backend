@@ -12,8 +12,7 @@ from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, System
 from typing_extensions import TypedDict
 
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph.checkpoint.sqlite import SqliteSaver  # Sync SQLite saver
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver  # Add Async SQLite support
+from langgraph.checkpoint.mongodb.aio import AsyncMongoDBSaver  # Updated import path
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
@@ -259,33 +258,55 @@ graph_builder.add_conditional_edges("chatbot", tools_condition)
 graph_builder.add_edge("tools", "chatbot")
 graph_builder.add_edge("chatbot", END)
 
-# Use SQLite for persistence
+# Use MongoDB for persistence
 logger.info("Initializing persistence storage")
-# Get database path from environment variable or use a default
-db_path = os.environ.get("SQLITE_DB_PATH", "data/agent_state.db")
+# Get MongoDB URI from environment variable
+mongodb_uri = os.environ.get("MONGODB_URI")
 try:
-    # Try to use SQLite persistence
-    logger.info(f"Attempting to use SQLite persistence with path: {db_path}")
+    # Try to use MongoDB persistence
+    logger.info("Attempting to use MongoDB Atlas persistence")
     
-    # Create directory structure if it doesn't exist
-    dir_path = os.path.dirname(db_path)
-    if dir_path:
-        os.makedirs(dir_path, exist_ok=True)
-        logger.info(f"Ensured directory exists at: {dir_path}")
+    # Initialize MongoDBSaver for persistence with proper timeout settings for cloud connection
+    memory = AsyncMongoDBSaver.from_conn_string(
+        conn_string=mongodb_uri,
+        database_name=os.environ.get("MONGODB_DATABASE"),
+        collection_name="agent_state",
+        # Add timeout settings appropriate for cloud connections
+        timeout_ms=5000
+    )
     
-    # Initialize AsyncSqliteSaver for async operations
-    memory = AsyncSqliteSaver(db_path)
+    logger.info("Successfully initialized MongoDB Atlas persistence")
     
-    # Verify database was created
-    if os.path.exists(db_path):
-        logger.info(f"SQLite database file created/exists at: {db_path}")
-    else:
-        logger.warning(f"SQLite database file not found at: {db_path} after initialization")
+    # Verify connection is working properly
+    # This should be removed in production as it adds overhead, but useful during migration
+    async def verify_mongodb_connection():
+        try:
+            # Simple connection test
+            test_data = {"test_id": "connection_test", "timestamp": time.time()}
+            test_config = {"checkpoint_id": "connection_test"}
+            
+            # Try to save and retrieve test data
+            await memory.put(test_data, test_config)
+            retrieved = await memory.get(test_config)
+            
+            if retrieved and "test_id" in retrieved:
+                logger.info("✅ MongoDB Atlas connection verified successfully")
+                # Clean up test data
+                await memory.delete(test_config)
+                return True
+            else:
+                logger.warning("⚠️ MongoDB connection test failed - could not retrieve test data")
+                return False
+        except Exception as e:
+            logger.warning(f"⚠️ MongoDB connection verification failed: {str(e)}")
+            return False
     
-    logger.info("Successfully initialized SQLite persistence")
+    # We'll run this verification in the background
+    asyncio.create_task(verify_mongodb_connection())
+    
 except Exception as e:
-    # Fall back to MemorySaver if there's an issue with SQLite
-    logger.warning(f"Failed to initialize SQLite persistence: {str(e)}")
+    # Fall back to MemorySaver if there's an issue with MongoDB
+    logger.warning(f"Failed to initialize MongoDB Atlas persistence: {str(e)}")
     logger.warning("Falling back to in-memory storage (will not persist between restarts)")
     memory = MemorySaver()
 
@@ -367,18 +388,33 @@ class LangGraphHandler:
                 }
             )
             
-            # The state is automatically saved through the checkpointer when using ainvoke
-            # No need to explicitly save the state, but we'll log the success
-            logger.info(f"State automatically saved for checkpoint_id {checkpoint_id}")
-            
-            # Verify state was actually saved by attempting to retrieve it
+            # Explicitly verify state was actually saved by attempting to retrieve it
             try:
+                logger.info(f"Verifying state persistence for checkpoint_id {checkpoint_id}")
                 verification_state = await self.graph.get_state({"checkpoint_id": checkpoint_id})
                 if verification_state and "messages" in verification_state:
                     message_count = len(verification_state["messages"])
-                    logger.info(f"Verified state persistence: found {message_count} messages in checkpoint_id {checkpoint_id}")
+                    logger.info(f"✅ Verified state persistence: found {message_count} messages in checkpoint_id {checkpoint_id}")
                 else:
-                    logger.warning(f"State verification issue: retrieved state missing messages for checkpoint_id {checkpoint_id}")
+                    logger.warning(f"⚠️ State verification issue: retrieved state missing messages for checkpoint_id {checkpoint_id}")
+                    # Attempt to explicitly save state if automatic saving failed
+                    try:
+                        logger.info(f"Attempting explicit state save for checkpoint_id {checkpoint_id}")
+                        # Get the state directly from the result
+                        state_to_save = {
+                            "messages": result["messages"],
+                            "user_id": user_id,
+                            "context_id": context_id,
+                            "metadata": {"event_type": event_type}
+                        }
+                        # Explicitly save the state
+                        await self.memory.put(
+                            state_to_save,
+                            {"checkpoint_id": checkpoint_id, "thread_id": user_id}
+                        )
+                        logger.info(f"✅ Explicitly saved state for checkpoint_id {checkpoint_id}")
+                    except Exception as e:
+                        logger.error(f"❌ Failed to explicitly save state: {str(e)}")
             except Exception as e:
                 logger.warning(f"Could not verify state persistence for checkpoint_id {checkpoint_id}: {str(e)}")
             
