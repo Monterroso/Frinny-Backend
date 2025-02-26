@@ -14,3 +14,7 @@ langchain-openai>=0.0.2
 langchain-core>=0.0.13
 openai>=1.0.0
 typing-extensions>=4.5.0
+
+# Persistence
+langgraph-checkpoint-sqlite>=1.0.0
+aiosqlite>=0.17.0  # Required for AsyncSqliteSaver

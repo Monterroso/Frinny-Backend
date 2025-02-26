@@ -3,17 +3,21 @@ import os
 import json
 import time
 import uuid
+import re
 
 from langchain_openai import ChatOpenAI  # Using OpenAI for our LLM
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 from typing_extensions import TypedDict
 
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.sqlite import SqliteSaver  # Sync SQLite saver
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver  # Add Async SQLite support
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
 
 from app.agent.tools import PF2ERulesLookup, CombatAnalyzer, LevelUpAdvisor, AdventureReference
+from app.agent.mood_analyzer import analyze_mood, analyze_prompt_for_mood
 from app.config.logging_config import get_logger
 
 # Get module logger
@@ -64,11 +68,36 @@ Always be concise but thorough, and use an encouraging tone.
 IMPORTANT: Maintain a natural, conversational flow. Respond directly to what the user is asking,
 and adapt to changing contexts or new information they provide. Don't be rigid or formulaic in your responses.
 
+RESPONSE FORMAT: After generating your response, you must analyze your own emotional tone. 
+At the end of your message, add a JSON object with mood scores (from 0.0 to 1.0) inside triple backticks like this:
+```json
+{{
+  "moods": {{
+    "confused": 0.1,
+    "happy": 0.8, 
+    "thinking": 0.5,
+    "scared": 0.0
+  }}
+}}
+```
+This JSON must be at the very end of your message and properly formatted. The scores should reflect how strongly your response expresses each emotion.
+
 Here are some examples of your personality and tone:
 
 Example 1 - Rules Question:
 User: "How does the Frightened condition work?"
-You: "The Frightened condition represents fear and anxiety! When you're Frightened, you get a status penalty equal to the condition value to all your checks and DCs. Also, you can't willingly move closer to the source of your fear. The condition decreases by 1 at the end of each of your turns, so Frightened 2 would become Frightened 1 after your turn. It's found on page 620 of the Core Rulebook if you want to check it out yourself!"
+You: "The Frightened condition represents fear and anxiety! When you're Frightened, you get a status penalty equal to the condition value to all your checks and DCs. Also, you can't willingly move closer to the source of your fear. The condition decreases by 1 at the end of each of your turns, so Frightened 2 would become Frightened 1 after your turn. It's found on page 620 of the Core Rulebook if you want to check it out yourself!
+
+```json
+{{
+  "moods": {{
+    "confused": 0.0,
+    "happy": 0.7,
+    "thinking": 0.4,
+    "scared": 0.0
+  }}
+}}
+```"
 
 Example 2 - Combat Advice:
 User: "My wizard is surrounded by three goblins, what should I do?"
@@ -76,9 +105,35 @@ You: "Surrounded by goblins? That's a tricky spot for a wizard! You might want t
 
 Example 3 - Follow-up Question:
 User: "But I don't want to use fire spells because we're in a library."
-You: "Oh, excellent point about being in a library! Let's avoid those fire spells then. How about using Ray of Frost to slow one goblin down? Or if you have any control spells like Grease or Create Water, you could make the floor slippery to impede their movement without damaging the books. Sleep would be perfect if you have it prepared - it could incapacitate them without any collateral damage to those precious tomes!"
+You: "Oh, excellent point about being in a library! Let's avoid those fire spells then. How about using Ray of Frost to slow one goblin down? Or if you have any control spells like Grease or Create Water, you could make the floor slippery to impede their movement without damaging the books. Sleep would be perfect if you have it prepared - it could incapacitate them without any collateral damage to those precious tomes!
 
-Example 4 - Character Building:
+```json
+{{
+  "moods": {{
+    "confused": 0.0,
+    "happy": 0.6,
+    "thinking": 0.8,
+    "scared": 0.0
+  }}
+}}
+```"
+
+Example 4 - Character in Danger:
+User: "Help! My character is about to die!"
+You: "Oh no! Let's see how we can turn things around! What's your current hit points and situation? If you're in combat, consider using the Take Cover action for +2 AC or the Raise a Shield action if you have one. Drinking a healing potion is a quick 1-action option. If you have an escape ability like Sudden Charge or a teleportation spell, use it to create distance. Remember, the Escape action can help if you're grabbed, and the Party can use the Aid action to help you. Give me more details about the threat and I can provide more specific advice!
+
+```json
+{{
+  "moods": {{
+    "confused": 0.1,
+    "happy": 0.0,
+    "thinking": 0.3,
+    "scared": 0.9
+  }}
+}}
+```"
+
+Example 5 - Character Building:
 User: "I want to build a rogue that's good at intimidation."
 You: "A intimidating rogue sounds fun! Consider taking the Thug racket, which makes Intimidation your key skill instead of Deception. For ancestry, humans get a free skill feat (Intimidating Glare removes the language requirement for Demoralize would be perfect), and half-orcs get a bonus to Intimidation checks. For skills, obviously max out Intimidation, and consider Athletics for grappling frightened enemies who can't move toward you. The Intimidating Strike feat at 4th level would let you Demoralize as part of your Strikes. Would you like more specific build advice?"
 """
@@ -203,9 +258,24 @@ graph_builder.add_conditional_edges("chatbot", tools_condition)
 graph_builder.add_edge("tools", "chatbot")
 graph_builder.add_edge("chatbot", END)
 
-# Use MemorySaver for persistence
-logger.info("Initializing MemorySaver")
-memory = MemorySaver()
+# Use SQLite for persistence
+logger.info("Initializing persistence storage")
+# Get database path from environment variable or use a default
+db_path = os.environ.get("SQLITE_DB_PATH", "agent_state.db")
+try:
+    # Try to use SQLite persistence
+    logger.info(f"Attempting to use SQLite persistence with path: {db_path}")
+    # Create directory if it doesn't exist
+    os.makedirs(os.path.dirname(db_path) if os.path.dirname(db_path) else '.', exist_ok=True)
+    # Initialize AsyncSqliteSaver for async operations
+    memory = AsyncSqliteSaver(db_path)
+    logger.info("Successfully initialized SQLite persistence")
+except Exception as e:
+    # Fall back to MemorySaver if there's an issue with SQLite
+    logger.warning(f"Failed to initialize SQLite persistence: {str(e)}")
+    logger.warning("Falling back to in-memory storage (will not persist between restarts)")
+    memory = MemorySaver()
+
 graph = graph_builder.compile(checkpointer=memory)
 
 
@@ -254,15 +324,18 @@ class LangGraphHandler:
             # Get existing messages for this context if available
             existing_state = None
             try:
-                # Use the proper checkpointer configuration
+                # Try to get the existing state
                 logger.info(f"Getting existing state for checkpoint_id {checkpoint_id}")
-                logger.info(f"self.memory: {self.memory}")
-                existing_state = await self.memory.get(
-                    {"configurable": {"checkpoint_id": checkpoint_id}}
-                )
-                logger.info(f"Retrieved existing state for checkpoint_id {checkpoint_id}")
+                # Get the state directly from the checkpointer
+                existing_state = None
+                try:
+                    config = {"config": {"checkpoint_id": checkpoint_id}}
+                    existing_state = await self.graph.get_state(config)
+                    logger.info(f"Retrieved existing state for checkpoint_id {checkpoint_id}")
+                except Exception as e:
+                    logger.info(f"No existing state found for checkpoint_id {checkpoint_id}: {str(e)}")
             except Exception as e:
-                logger.info(f"No existing state found for checkpoint_id {checkpoint_id}: {str(e)}")
+                logger.warning(f"Error retrieving state: {str(e)}")
             
             # Initialize messages list
             messages = [message]
@@ -279,32 +352,76 @@ class LangGraphHandler:
                     "context_id": context_id,
                     "metadata": {"event_type": event_type}
                 },
+                #Don't edit this config this is how it's supposed to be
                 config={
                     "checkpoint_id": checkpoint_id,
                     "thread_id": user_id
                 }
             )
             
-            # Save the updated state back to memory
-            try:
-                await self.memory.put(
-                    {"configurable": {"checkpoint_id": checkpoint_id}},
-                    result
-                )
-                logger.info(f"Saved updated state for checkpoint_id {checkpoint_id}")
-            except Exception as e:
-                logger.error(f"Failed to save state for checkpoint_id {checkpoint_id}: {str(e)}")
+            # The state is automatically saved through the checkpointer when using ainvoke
+            # No need to explicitly save the state, but we'll log the success
+            logger.info(f"State automatically saved for checkpoint_id {checkpoint_id}")
             
             # Get the last message (the response)
             last_message = result["messages"][-1]
             response_content = last_message.content if hasattr(last_message, 'content') else str(last_message)
+            
+            # Extract mood scores from response if present
+            mood = "default"
+            try:
+                # Look for JSON mood data at the end of the response
+                logger.debug(f"Attempting to extract mood from response: {response_content[-200:]}")
+                
+                # Extract JSON data from triple backticks
+                json_match = re.search(r'```json\s*(.*?)\s*```\s*$', response_content, re.DOTALL)
+                if json_match:
+                    # Extract the JSON content
+                    json_data = json_match.group(1)
+                    logger.debug(f"Extracted JSON string: {json_data}")
+                    
+                    # Clean up any potential formatting issues
+                    json_data = json_data.strip()
+                    
+                    # Parse the JSON
+                    mood_data = json.loads(json_data)
+                    logger.debug(f"Successfully parsed JSON: {mood_data}")
+                    
+                    # Remove the JSON block from the response
+                    response_content = response_content[:json_match.start()].strip()
+                    
+                    # Determine the dominant mood (highest score)
+                    if "moods" in mood_data and mood_data["moods"]:
+                        # Find mood with highest score
+                        mood = max(mood_data["moods"].items(), key=lambda x: x[1])[0]
+                        logger.info(f"Extracted mood scores from response: {mood_data['moods']}")
+                        logger.info(f"Selected dominant mood: {mood}")
+                    else:
+                        logger.warning("JSON found but no 'moods' key present")
+                else:
+                    logger.debug("No JSON mood data found in response, falling back to pattern matching")
+                    # First check if user explicitly requested a mood
+                    user_requested_mood = analyze_prompt_for_mood(content)
+                    if user_requested_mood:
+                        mood = user_requested_mood
+                        logger.info(f"Using user-requested mood: {mood}")
+                    else:
+                        # Otherwise analyze the response for mood
+                        mood = analyze_mood(response_content)
+                        logger.info(f"Detected mood using pattern matching: {mood}")
+            except Exception as e:
+                # If any error occurs during mood extraction, fall back to pattern matching
+                logger.warning(f"Error extracting mood from response: {str(e)}")
+                mood = analyze_mood(response_content)
+                logger.info(f"Fallback mood detection: {mood}")
             
             # Format response for socket_setup
             response = {
                 'request_id': request_id,
                 'status': 'success',
                 'timestamp': int(time.time() * 1000),
-                'context_id': context_id
+                'context_id': context_id,
+                'mood': mood  # Include the mood in the response
             }
             
             # Add content with appropriate field name based on event type
@@ -323,6 +440,7 @@ class LangGraphHandler:
                 'request_id': data.get('request_id', str(uuid.uuid4())),
                 'status': 'error',
                 'timestamp': int(time.time() * 1000),
+                'mood': 'confused',  # Use confused mood for error responses
                 'error': error_message,
                 'debug_info': f"Error processing {event_type}: {str(e)}"
             }
