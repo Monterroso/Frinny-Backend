@@ -21,7 +21,7 @@ typing-extensions>=4.5.0
 # aiosqlite>=0.17.0  # Required for AsyncSqliteSaver
 
 # MongoDB Persistence
-langgraph-checkpoint-mongodb>=0.0.2
+langgraph-checkpoint-mongodb>=0.1.0
 pymongo>=4.5.0
 
 # Tavily API Integration

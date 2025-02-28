@@ -13,6 +13,9 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
 
+from pymongo import MongoClient
+from langgraph.checkpoint.mongodb import MongoDBSaver
+
 from app.agent.tools import pf2e_rules_lookup, combat_analyzer, level_up_advisor, adventure_reference
 from app.config.logging_config import get_logger
 
@@ -98,8 +101,10 @@ graph_builder.add_conditional_edges("chatbot", tools_condition)
 graph_builder.add_edge("tools", "chatbot")
 graph_builder.add_edge("chatbot", END)
 
-# Use simple MemorySaver for persistence
-memory = MemorySaver()
+mongodb_client = MongoClient(os.environ.get("MONGODB_URI"))
+
+memory = MongoDBSaver(mongodb_client)
+logger.info(f"Memory: {memory}")
 graph = graph_builder.compile(checkpointer=memory)
 
 
@@ -152,7 +157,7 @@ class LangGraphHandler:
             
             # Process through graph with the user's thread_id
             logger.info(f"Invoking graph with {len(messages)} messages for user {user_id}")
-            result = await self.graph.ainvoke(
+            result = self.graph.invoke(
                 {
                     "messages": messages,
                     "user_id": user_id,
@@ -161,6 +166,7 @@ class LangGraphHandler:
                 },
                 {"configurable": {"thread_id": thread_id}}
             )
+            logger.info(f"Result: {result}")
             
             # Get the last message (the response)
             last_message = result["messages"][-1]
@@ -185,6 +191,7 @@ class LangGraphHandler:
         except Exception as e:
             error_message = "I'm sorry, I encountered a system error. Please try again."
             logger.error(f"Error in LangGraph processing: {str(e)}")
+            logger.error(f"Error in LangGraph processing: {type(e)}")
             return {
                 'request_id': data.get('request_id', str(uuid.uuid4())),
                 'status': 'error',

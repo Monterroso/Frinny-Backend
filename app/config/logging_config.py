@@ -31,6 +31,9 @@ def setup_logging():
     logging.getLogger('werkzeug').setLevel(logging.WARNING)
     logging.getLogger('socketio').setLevel(logging.WARNING)
     logging.getLogger('engineio').setLevel(logging.WARNING)
+    # Add PyMongo loggers to reduce verbose heartbeat logs
+    logging.getLogger('pymongo').setLevel(logging.WARNING)
+    logging.getLogger('pymongo.topology').setLevel(logging.WARNING)
     
     # Return the root logger for convenience
     return logging.getLogger()
