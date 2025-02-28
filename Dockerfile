@@ -14,6 +14,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
+# Clean pycache files
+RUN find . -type d -name __pycache__ -exec rm -rf {} +
+
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV FLASK_APP=app

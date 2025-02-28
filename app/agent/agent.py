@@ -17,7 +17,7 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
 
-from app.agent.tools import PF2ERulesLookup, CombatAnalyzer, LevelUpAdvisor, AdventureReference
+from app.agent.tools import pf2e_rules_lookup, combat_analyzer, level_up_advisor, adventure_reference
 from app.config.logging_config import get_logger
 
 # Get module logger
@@ -231,10 +231,10 @@ graph_builder = StateGraph(State)
 
 # Define tools
 tools = [
-    PF2ERulesLookup(),
-    CombatAnalyzer(),
-    LevelUpAdvisor(),
-    AdventureReference()
+    pf2e_rules_lookup,
+    combat_analyzer,
+    level_up_advisor,
+    adventure_reference
 ]
 
 # Initialize OpenAI LLM
@@ -276,33 +276,6 @@ try:
     )
     
     logger.info("Successfully initialized MongoDB Atlas persistence")
-    
-    # Verify connection is working properly
-    # This should be removed in production as it adds overhead, but useful during migration
-    async def verify_mongodb_connection():
-        try:
-            # Simple connection test
-            test_data = {"test_id": "connection_test", "timestamp": time.time()}
-            test_config = {"checkpoint_id": "connection_test"}
-            
-            # Try to save and retrieve test data
-            await memory.put(test_data, test_config)
-            retrieved = await memory.get(test_config)
-            
-            if retrieved and "test_id" in retrieved:
-                logger.info("✅ MongoDB Atlas connection verified successfully")
-                # Clean up test data
-                await memory.delete(test_config)
-                return True
-            else:
-                logger.warning("⚠️ MongoDB connection test failed - could not retrieve test data")
-                return False
-        except Exception as e:
-            logger.warning(f"⚠️ MongoDB connection verification failed: {str(e)}")
-            return False
-    
-    # We'll run this verification in the background
-    asyncio.create_task(verify_mongodb_connection())
     
 except Exception as e:
     # Fall back to MemorySaver if there's an issue with MongoDB
@@ -361,7 +334,7 @@ class LangGraphHandler:
                 # Try to get the existing state
                 logger.info(f"Getting existing state for checkpoint_id {checkpoint_id}")
                 # Get the state directly from the checkpointer
-                existing_state = await self.graph.get_state({"checkpoint_id": checkpoint_id})
+                existing_state = await self.graph.get_state({"configurable": {"checkpoint_id": checkpoint_id}})
                 logger.info(f"Retrieved existing state for checkpoint_id {checkpoint_id}")
             except Exception as e:
                 logger.info(f"No existing state found for checkpoint_id {checkpoint_id}: {str(e)}")
@@ -382,16 +355,13 @@ class LangGraphHandler:
                     "context_id": context_id,
                     "metadata": {"event_type": event_type}
                 },
-                config={
-                    "checkpoint_id": checkpoint_id,
-                    "thread_id": user_id
-                }
+                {"configurable": {"checkpoint_id": checkpoint_id}}
             )
             
             # Explicitly verify state was actually saved by attempting to retrieve it
             try:
                 logger.info(f"Verifying state persistence for checkpoint_id {checkpoint_id}")
-                verification_state = await self.graph.get_state({"checkpoint_id": checkpoint_id})
+                verification_state = await self.graph.get_state({"configurable": {"checkpoint_id": checkpoint_id}})
                 if verification_state and "messages" in verification_state:
                     message_count = len(verification_state["messages"])
                     logger.info(f"✅ Verified state persistence: found {message_count} messages in checkpoint_id {checkpoint_id}")
@@ -410,7 +380,7 @@ class LangGraphHandler:
                         # Explicitly save the state
                         await self.memory.put(
                             state_to_save,
-                            {"checkpoint_id": checkpoint_id, "thread_id": user_id}
+                            {"configurable": {"checkpoint_id": checkpoint_id}}
                         )
                         logger.info(f"✅ Explicitly saved state for checkpoint_id {checkpoint_id}")
                     except Exception as e:
