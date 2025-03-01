@@ -18,6 +18,7 @@ from langgraph.checkpoint.mongodb import MongoDBSaver
 
 from app.agent.tools import pf2e_rules_lookup, combat_analyzer, level_up_advisor, adventure_reference
 from app.config.logging_config import get_logger
+from app.agent.personalities import get_personality
 
 # Get module logger
 logger = get_logger(__name__)
@@ -31,18 +32,19 @@ class State(TypedDict):
     metadata: Dict = {}
 
 
-def get_system_prompt() -> str:
+def get_system_prompt(personality_name=None) -> str:
     """
-    Get a simple system prompt focused on tool usage.
+    Get system prompt from the specified or default personality.
     
+    Args:
+        personality_name: Optional name of personality to use
+        
     Returns:
-        Simple system prompt with instructions
+        System prompt for the agent
     """
-    return """You are Frinny, a helpful Pathfinder 2E assistant.
-You have access to tools that can help you answer questions about the Pathfinder 2E game system.
-Use these tools whenever appropriate to provide accurate information.
-Be concise and clear in your answers.
-"""
+    personality = get_personality(personality_name)
+    logger.info(f"Using personality: {personality}")
+    return personality.system_prompt
 
 
 def chatbot(state: State):
@@ -50,26 +52,39 @@ def chatbot(state: State):
     Processes user messages and generates responses using the LLM with tools.
     
     Args:
-        state: The current state with messages and context
+        state: Current state with messages and context
         
     Returns:
-        Updated state with assistant's response added to messages
+        Updated state with AI response
     """
-    # Get the event type from metadata
-    event_type = state.get("metadata", {}).get("event_type", "query")
+    # Extract metadata and personality name if provided
+    metadata = state.get("metadata", {})
+    personality_name = metadata.get("personality", "Frinny")
     
-    # Check if we need to add a system message
+    # Initialize LLM with larger context window for complex queries
+    llm = ChatOpenAI(temperature=0.7, model="gpt-4")
+    
+    # Get the current messages
     messages = state["messages"]
-    if not any(isinstance(msg, SystemMessage) for msg in messages):
-        # Add system message with personality
-        system_prompt = get_system_prompt()
-        messages = [SystemMessage(content=system_prompt)] + messages
     
-    # Use the LLM with tools to generate a response
-    response = llm_with_tools.invoke(messages)
+    # If this is a new conversation, add the system message
+    if not any(isinstance(m, SystemMessage) for m in messages):
+        system_message = SystemMessage(content=get_system_prompt(personality_name))
+        messages = [system_message] + messages
     
-    # Add the response to the messages
-    return {"messages": llm_with_tools.invoke(messages)}
+    # Add user tool definitions
+    tools = [
+        pf2e_rules_lookup,
+        combat_analyzer,
+        level_up_advisor,
+        adventure_reference
+    ]
+    
+    # Generate AI response
+    response = llm.bind_tools(tools).invoke(messages)
+    
+    # Return updated state with the new message
+    return {"messages": messages + [response]}
 
 
 # Initialize graph builder
@@ -132,6 +147,9 @@ class LangGraphHandler:
             # Extract or generate request_id
             request_id = data.get('request_id', str(uuid.uuid4()))
             
+            # Get personality name if specified in data
+            personality_name = data.get('personality')
+            
             # Create a unique thread_id using only the user_id
             # This ensures all messages from the same user go to the same thread
             thread_id = f"user_{user_id}"
@@ -162,7 +180,10 @@ class LangGraphHandler:
                     "messages": messages,
                     "user_id": user_id,
                     "context_id": thread_id,  # Using thread_id here for consistency
-                    "metadata": {"event_type": event_type}
+                    "metadata": {
+                        "event_type": event_type,
+                        "personality": personality_name
+                    }
                 },
                 {"configurable": {"thread_id": thread_id}}
             )
@@ -180,18 +201,19 @@ class LangGraphHandler:
                 'context_id': thread_id  # Return the thread_id as context_id for consistency
             }
             
-            # Add content with appropriate field name
-            if event_type == 'query':
-                response['content'] = response_content
-            else:
-                response['message'] = response_content
+            # Add content with appropriate field name using personality formatting
+            personality = get_personality(personality_name)
+            formatted_content = personality.format_response(response_content, event_type)
+            response.update(formatted_content)
                 
             return response
             
         except Exception as e:
-            error_message = "I'm sorry, I encountered a system error. Please try again."
+            # Get error message from personality
+            personality = get_personality(data.get('personality'))
+            error_message = personality.error_message
+            
             logger.error(f"Error in LangGraph processing: {str(e)}")
-            logger.error(f"Error in LangGraph processing: {type(e)}")
             return {
                 'request_id': data.get('request_id', str(uuid.uuid4())),
                 'status': 'error',

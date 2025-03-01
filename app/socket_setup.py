@@ -13,6 +13,7 @@ import json
 import asyncio
 from app.config.logging_config import get_logger
 from app.agent.agent import lang_graph_handler
+from app.agent.personalities import get_personality
 
 # Get module logger
 logger = get_logger(__name__)
@@ -117,6 +118,10 @@ async def handle_generic_event_async(event_type, data, user_id, response_event=N
         if response_event is None:
             response_event = f"{event_type}_response"
         
+        # Pass personality if provided in the request
+        if 'personality' in data:
+            logger.info(f"Using personality: {data['personality']}")
+        
         # Process the event using LangGraphHandler
         response = await lang_graph_handler.process_event(event_type, data, user_id)
         
@@ -130,8 +135,13 @@ async def handle_generic_event_async(event_type, data, user_id, response_event=N
         socketio.emit(response_event, response, room=user_id)
         
     except Exception as e:
+        # Get appropriate error message from personality
+        personality_name = data.get('personality')
+        personality = get_personality(personality_name)
+        error_message = personality.error_message
+        
         error_response = {
-            'error': f"Internal server error during {event_type}",
+            'error': error_message,
             'request_id': data.get('request_id'),
             'timestamp': int(time.time() * 1000)
         }
@@ -172,15 +182,6 @@ def handle_generic_event(event_type, data, user_id, response_event=None, message
 def handle_query(data):
     """Handle general queries"""
     user_id = request.args.get('userId')
-    # Send immediate acknowledgment
-    ack = {
-        'status': 'processing',
-        'request_id': data.get('request_id', str(uuid.uuid4())),
-        'timestamp': int(time.time() * 1000)
-    }
-    emit('query_ack', ack, room=user_id)
-    
-    # Process in background
     socketio.start_background_task(
         handle_generic_event, 
         'query', data, user_id, 
