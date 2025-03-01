@@ -8,7 +8,7 @@ pydantic==2.5.2
 faiss-cpu==1.7.4
 
 # LangGraph and LangChain dependencies
-langgraph>=0.0.15
+langgraph>=0.0.34
 langchain>=0.0.267
 langchain-openai>=0.0.2
 langchain-core>=0.0.13
@@ -21,7 +21,7 @@ typing-extensions>=4.5.0
 # aiosqlite>=0.17.0  # Required for AsyncSqliteSaver
 
 # MongoDB Persistence
-langgraph-checkpoint-mongodb>=0.1.0
+langgraph-checkpoint-mongodb>=0.1.1
 pymongo>=4.5.0
 
 # Tavily API Integration

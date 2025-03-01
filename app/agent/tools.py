@@ -39,7 +39,7 @@ async def pf2e_rules_lookup(query: str) -> Dict:
 
 
 @tool
-def combat_analyzer(
+async def combat_analyzer(
     combat_state: Dict, 
     character_id: Optional[str] = None
 ) -> Dict:
@@ -67,7 +67,7 @@ def combat_analyzer(
 
 
 @tool
-def level_up_advisor(
+async def level_up_advisor(
     character_data: Dict, 
     level_up_goals: List[str] = None
 ) -> Dict:
@@ -94,7 +94,7 @@ def level_up_advisor(
 
 
 @tool
-def adventure_reference(
+async def adventure_reference(
     query: str, 
     adventure_context: Optional[Dict] = None
 ) -> Dict:

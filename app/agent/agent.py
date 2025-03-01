@@ -3,6 +3,7 @@ import os
 import json
 import time
 import uuid
+import asyncio
 
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
@@ -14,7 +15,7 @@ from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
 
 from pymongo import MongoClient
-from langgraph.checkpoint.mongodb import MongoDBSaver
+from langgraph.checkpoint.mongodb.aio import AsyncMongoDBSaver
 
 from app.agent.tools import pf2e_rules_lookup, combat_analyzer, level_up_advisor, adventure_reference
 from app.config.logging_config import get_logger
@@ -118,7 +119,8 @@ graph_builder.add_edge("chatbot", END)
 
 mongodb_client = MongoClient(os.environ.get("MONGODB_URI"))
 
-memory = MongoDBSaver(mongodb_client)
+# memory = AsyncMongoDBSaver(mongodb_client)
+memory = MemorySaver()
 logger.info(f"Memory: {memory}")
 graph = graph_builder.compile(checkpointer=memory)
 
@@ -175,18 +177,23 @@ class LangGraphHandler:
             
             # Process through graph with the user's thread_id
             logger.info(f"Invoking graph with {len(messages)} messages for user {user_id}")
-            result = self.graph.invoke(
-                {
-                    "messages": messages,
-                    "user_id": user_id,
-                    "context_id": thread_id,  # Using thread_id here for consistency
-                    "metadata": {
-                        "event_type": event_type,
-                        "personality": personality_name
-                    }
-                },
-                {"configurable": {"thread_id": thread_id}}
-            )
+            
+            # Prepare input state
+            input_state = {
+                "messages": messages,
+                "user_id": user_id,
+                "context_id": thread_id,  # Using thread_id here for consistency
+                "metadata": {
+                    "event_type": event_type,
+                    "personality": personality_name
+                }
+            }
+            
+            config = {"configurable": {"thread_id": thread_id}}
+            
+            # Always use ainvoke since we have async tools
+            result = await self.graph.ainvoke(input_state, config)
+            
             logger.info(f"Result: {result}")
             
             # Get the last message (the response)
@@ -213,7 +220,7 @@ class LangGraphHandler:
             personality = get_personality(data.get('personality'))
             error_message = personality.error_message
             
-            logger.error(f"Error in LangGraph processing: {str(e)}")
+            logger.error(f"Error in LangGraph processing: {type(e)}")
             return {
                 'request_id': data.get('request_id', str(uuid.uuid4())),
                 'status': 'error',
